@@ -10,7 +10,7 @@ public Plugin:myinfo = {
 	name = "WarMod Scorefix",
 	author = "Woobbie",
 	description = "Fixes player / bot score wiping after LO3 restarts in CS:S v34",
-	version = "1.",
+	version = "1.0.0",
 	url = ""
 };
 
