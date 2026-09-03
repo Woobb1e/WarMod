@@ -8,7 +8,9 @@
 new g_iDamageDealt[MAXPLAYERS + 1][MAXPLAYERS + 1];
 new g_iHitsDealt[MAXPLAYERS + 1][MAXPLAYERS + 1];
 
-// HEX color definitions for ClientMod
+// Flag to prevent duplicate messages when the last player dies
+new bool:g_bRoundEnded = false;
+
 // Color variables (loaded from configs/warmod_damage_colors.cfg)
 new String:g_sColLg[16];
 new String:g_sColW[16];
@@ -19,7 +21,7 @@ public Plugin:myinfo = {
     name = "Warmod damage info",
     author = "Woobbie",
     description = "",
-    version = "2.6",
+    version = "2.7",
     url = ""
 };
 
@@ -55,7 +57,7 @@ public Action:Event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
     return Plugin_Continue;
 }
 
-// On player death: show mutual damage exclusively to the dead player against their killer
+// On player death: buffer the message to verify if the round ends
 public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (IsInWarmup()) return Plugin_Continue;
@@ -69,27 +71,48 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
         {
             if (GetClientTeam(victim) != GetClientTeam(attacker))
             {
-                new d_Dealt = g_iDamageDealt[victim][attacker];
-                new h_Dealt = g_iHitsDealt[victim][attacker];
-                new d_Taken = g_iDamageDealt[attacker][victim];
-                new h_Taken = g_iHitsDealt[attacker][victim];
-
-                new String:sEnemyName[32], String:sEnemyCol[16];
-                GetClientName(attacker, sEnemyName, sizeof(sEnemyName));
-                GetTeamColor(GetClientTeam(attacker), sEnemyCol, sizeof(sEnemyCol));
-
-                new iEnemyHp = IsPlayerAlive(attacker) ? GetEntProp(attacker, Prop_Send, "m_iHealth") : 0;
-                if (iEnemyHp < 0) iEnemyHp = 0;
-
-                // Send exclusively to the victim (dead player)
-                CPrintToChat(victim, "%s[%s%d %s/ %s%d %shits] to [%s%d %s/ %s%d %shits] - %s%s %s[%s%d%s HP]",
-                    g_sColW, g_sColLg, d_Dealt, g_sColW, g_sColLg, h_Dealt, g_sColW, 
-                    g_sColLg, d_Taken, g_sColW, g_sColLg, h_Taken, g_sColW, 
-                    sEnemyCol, sEnemyName, g_sColW, g_sColLg, iEnemyHp, g_sColW);
+                DataPack pack;
+                CreateDataTimer(0.1, Timer_ShowDeathDamage, pack);
+                pack.WriteCell(victim);
+                pack.WriteCell(attacker);
             }
         }
     }
     return Plugin_Continue;
+}
+
+// Timer to print death damage (aborts if the round ended with this death)
+public Action:Timer_ShowDeathDamage(Handle:timer, DataPack pack)
+{
+    if (g_bRoundEnded) return Plugin_Stop;
+
+    pack.Reset();
+    new victim = pack.ReadCell();
+    new attacker = pack.ReadCell();
+
+    if (victim > 0 && victim <= MaxClients && IsClientInGame(victim) && !IsFakeClient(victim))
+    {
+        if (attacker > 0 && attacker <= MaxClients && IsClientInGame(attacker))
+        {
+            new d_Dealt = g_iDamageDealt[victim][attacker];
+            new h_Dealt = g_iHitsDealt[victim][attacker];
+            new d_Taken = g_iDamageDealt[attacker][victim];
+            new h_Taken = g_iHitsDealt[attacker][victim];
+
+            new String:sEnemyName[32], String:sEnemyCol[16];
+            GetClientName(attacker, sEnemyName, sizeof(sEnemyName));
+            GetTeamColor(GetClientTeam(attacker), sEnemyCol, sizeof(sEnemyCol));
+
+            new iEnemyHp = IsPlayerAlive(attacker) ? GetEntProp(attacker, Prop_Send, "m_iHealth") : 0;
+            if (iEnemyHp < 0) iEnemyHp = 0;
+
+            CPrintToChat(victim, "%s[%s%d %s/ %s%d %shits] to [%s%d %s/ %s%d %shits] - %s%s %s[%s%d%s HP]",
+                g_sColW, g_sColLg, d_Dealt, g_sColW, g_sColLg, h_Dealt, g_sColW, 
+                g_sColLg, d_Taken, g_sColW, g_sColLg, h_Taken, g_sColW, 
+                sEnemyCol, sEnemyName, g_sColW, g_sColLg, iEnemyHp, g_sColW);
+        }
+    }
+    return Plugin_Stop;
 }
 
 // Load color config and reload command
@@ -126,7 +149,7 @@ public Action:Command_ReloadDamageColors(client, args)
     return Plugin_Handled;
 }
 
-// At round end: pass winning team index to timer
+// At round end: set flag and schedule losing team breakdown
 public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (IsInWarmup()) return Plugin_Continue;
@@ -134,8 +157,10 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
     new winnerTeam = GetEventInt(event, "winner");
     if (winnerTeam < 2) return Plugin_Continue;
 
+    g_bRoundEnded = true;
+
     DataPack pack;
-    CreateDataTimer(0.1, Timer_ShowDamage, pack);
+    CreateDataTimer(0.25, Timer_ShowDamage, pack);
     pack.WriteCell(winnerTeam);
     
     return Plugin_Continue;
@@ -155,7 +180,7 @@ public Action:Timer_ShowDamage(Handle:timer, DataPack pack)
 
         for (new j = 1; j <= MaxClients; j++)
         {
-            // Display all players on the winning team (even with 0 damage dealt/taken)
+            // Display all players on the winning team
             if (!IsClientInGame(j) || i == j || GetClientTeam(j) != winnerTeam) continue;
 
             new d_Dealt = g_iDamageDealt[i][j];
@@ -183,6 +208,8 @@ public Action:Timer_ShowDamage(Handle:timer, DataPack pack)
 // Reset stats at the beginning of each round
 public Action:Event_RoundStart(Handle:event, const String:name[], bool:dontBroadcast)
 {
+    g_bRoundEnded = false;
+
     for (new i = 1; i <= MaxClients; i++)
     {
         for (new j = 1; j <= MaxClients; j++)
