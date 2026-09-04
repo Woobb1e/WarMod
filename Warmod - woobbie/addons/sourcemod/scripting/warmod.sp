@@ -5300,7 +5300,6 @@ public Action:Timer_SyncScoreboard(Handle:timer)
 	if (g_should_restore_player_scores && g_live)
 	{
 		RestorePlayerScores();
-		g_should_restore_player_scores = false;
 	}
 	
 	return Plugin_Stop;
@@ -5342,6 +5341,7 @@ stock RestorePlayerScores()
 
 public Action:Timer_DelayedEndMatch(Handle:timer)
 {
+	g_live = false;
 	ServerCommand("sv_alltalk 1");
 	DisplayEndMatchInfo();
 	CreateTimer(2.0, Timer_ResetMatchAfterEnd, _);
