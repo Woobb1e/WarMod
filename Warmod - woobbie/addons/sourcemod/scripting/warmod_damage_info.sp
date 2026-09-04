@@ -4,11 +4,13 @@
 #include <clientmod>
 #include <clientmod/multicolors>
 
-// Optional native binding to WarMod Manager
+// Optional native bindings to WarMod Manager
+native bool:Warmod_IsMatchLive();
 native bool:Warmod_IsHalfTime();
 
 public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
 {
+    MarkNativeAsOptional("Warmod_IsMatchLive");
     MarkNativeAsOptional("Warmod_IsHalfTime");
     return APLRes_Success;
 }
@@ -29,8 +31,8 @@ new String:g_sColCT[16];
 public Plugin:myinfo = {
     name = "Warmod damage info",
     author = "Woobbie",
-    description = "Displays damage info with halftime suppression",
-    version = "2.8",
+    description = "Displays damage info only during live competitive matches",
+    version = "2.9",
     url = "https://github.com/Woobb1e"
 };
 
@@ -46,7 +48,7 @@ public OnPluginStart()
     RegConsoleCmd("wm_reload_damage_colors", Command_ReloadDamageColors);
 }
 
-// Track damage and hit counts during the round
+// Track damage and hit counts during the round (only if match is live)
 public Action:Event_PlayerHurt(Handle:event, const String:name[], bool:dontBroadcast)
 {
     if (IsInWarmup()) return Plugin_Continue;
@@ -69,7 +71,7 @@ public Action:Event_PlayerHurt(Handle:event, const String:name[], bool:dontBroad
 // On player death: buffer the message to verify if the round ends
 public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
 {
-    if (IsInWarmup() || IsHalftimeActive()) return Plugin_Continue;
+    if (IsInWarmup()) return Plugin_Continue;
 
     new victim = GetClientOfUserId(GetEventInt(event, "userid"));
     new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
@@ -90,10 +92,10 @@ public Action:Event_PlayerDeath(Handle:event, const String:name[], bool:dontBroa
     return Plugin_Continue;
 }
 
-// Timer to print death damage (aborts if round ended with this death or during halftime)
+// Timer to print death damage (aborts during warmup or if round ended)
 public Action:Timer_ShowDeathDamage(Handle:timer, DataPack pack)
 {
-    if (g_bRoundEnded || IsHalftimeActive()) return Plugin_Stop;
+    if (g_bRoundEnded || IsInWarmup()) return Plugin_Stop;
 
     pack.Reset();
     new victim = pack.ReadCell();
@@ -142,7 +144,6 @@ public LoadDamageColors()
     }
     else
     {
-        // Defaults if configuration file is not found
         strcopy(g_sColLg, sizeof(g_sColLg), "{#90EE90}");
         strcopy(g_sColW, sizeof(g_sColW), "{#FFFFFF}");
         strcopy(g_sColT, sizeof(g_sColT), "{#FF4040}");
@@ -161,7 +162,7 @@ public Action:Command_ReloadDamageColors(client, args)
 // At round end: set flag and schedule losing team breakdown
 public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadcast)
 {
-    if (IsInWarmup() || IsHalftimeActive()) return Plugin_Continue;
+    if (IsInWarmup()) return Plugin_Continue;
 
     new winnerTeam = GetEventInt(event, "winner");
     if (winnerTeam < 2) return Plugin_Continue;
@@ -178,8 +179,7 @@ public Action:Event_RoundEnd(Handle:event, const String:name[], bool:dontBroadca
 // Display full opposing team breakdown individually to each losing player
 public Action:Timer_ShowDamage(Handle:timer, DataPack pack)
 {
-    // Suppress damage display during Halftime
-    if (IsHalftimeActive()) return Plugin_Stop;
+    if (IsInWarmup()) return Plugin_Stop;
 
     pack.Reset();
     new winnerTeam = pack.ReadCell();
@@ -233,35 +233,29 @@ public Action:Event_RoundStart(Handle:event, const String:name[], bool:dontBroad
     return Plugin_Continue;
 }
 
-// Helper function to detect if the match is currently in Halftime
-bool:IsHalftimeActive()
+// Precise check for CS:S v34 WarMod: Only live competitive rounds are NOT warmup
+bool:IsInWarmup()
 {
-    // Check via WarMod Manager native if available
+    // 1. Check WarMod Manager: If match is NOT live, it is Warmup!
+    if (GetFeatureStatus(FeatureType_Native, "Warmod_IsMatchLive") == FeatureStatus_Available)
+    {
+        if (!Warmod_IsMatchLive())
+            return true;
+    }
+
+    // 2. Check WarMod Manager: If currently in Halftime, treat as warmup (suppress damage)
     if (GetFeatureStatus(FeatureType_Native, "Warmod_IsHalfTime") == FeatureStatus_Available)
     {
         if (Warmod_IsHalfTime())
             return true;
     }
 
-    // Fallback check via wm_show_info ConVar if disabled
-    new Handle:hShowInfo = FindConVar("wm_show_info");
-    if (hShowInfo != INVALID_HANDLE && !GetConVarBool(hShowInfo))
+    // 3. Fallback check on WarMod core ConVar
+    new Handle:hWmActive = FindConVar("wm_active");
+    if (hWmActive != INVALID_HANDLE && !GetConVarBool(hWmActive))
     {
         return true;
     }
-
-    return false;
-}
-
-bool:IsInWarmup()
-{
-    new Handle:hWarmup = FindConVar("mp_warmup_period");
-    if (hWarmup != INVALID_HANDLE && GetConVarInt(hWarmup) > 0)
-        return true;
-
-    new Handle:hDoWarmup = FindConVar("mp_do_warmup");
-    if (hDoWarmup != INVALID_HANDLE && GetConVarBool(hDoWarmup))
-        return true;
 
     return false;
 }
