@@ -1987,7 +1987,6 @@ public Event_Player_Team(Handle:event, const String:name[], bool:dontBroadcast)
 		{
 			CreateTimer(3.0, Timer_StartShowingStatus, _, TIMER_FLAG_NO_MAPCHANGE);
 			
-			if (IsFakeClient(client))
 			{
 				CreateTimer(0.5, RespawnPlayer, client);
 			}
