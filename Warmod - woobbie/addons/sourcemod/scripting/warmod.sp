@@ -2997,7 +2997,8 @@ ExecuteLiveOn3(bool:e_war)
 	g_match = true;
 	g_live = true;
 	
-
+	CreateTimer(6.0, Timer_RestoreScoresDelayed, _, TIMER_FLAG_NO_MAPCHANGE);
+	SyncScoreboard();
 
 	CreateTimer(10.0, AdvertGameTechSpecs);
 	
@@ -5585,6 +5586,17 @@ public Action:Timer_AutoLiveOn3(Handle:timer)
     SetAllCancelled(false);
     ReadySystem(false);
     LiveOn3(true);
+    return Plugin_Stop;
+}
+
+
+public Action:Timer_RestoreScoresDelayed(Handle:timer)
+{
+    if (g_should_restore_player_scores && g_live)
+    {
+        RestorePlayerScores();
+        g_should_restore_player_scores = false;
+    }
     return Plugin_Stop;
 }
 
