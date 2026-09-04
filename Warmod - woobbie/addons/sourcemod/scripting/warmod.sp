@@ -5534,7 +5534,7 @@ stock WM_CReplyToCommand(client, const String:format[], any:...)
 }
 
 /* ========================================================================= */
-/* Remove Location from Radio Messages (CS:S v34 Safe Timer Method) */
+/* Remove Location from Radio Messages */
 /* ========================================================================= */
 public Action:Hook_RadioText(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
 {
