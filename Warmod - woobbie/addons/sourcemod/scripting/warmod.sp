@@ -1987,9 +1987,7 @@ public Event_Player_Team(Handle:event, const String:name[], bool:dontBroadcast)
 		{
 			CreateTimer(3.0, Timer_StartShowingStatus, _, TIMER_FLAG_NO_MAPCHANGE);
 			
-			{
-				CreateTimer(0.5, RespawnPlayer, client);
-			}
+			CreateTimer(0.5, RespawnPlayer, client);
 		}
 	}
 }
@@ -2372,11 +2370,7 @@ CheckScores()
 					SwitchTeams();
 				}
 				
-				if (GetConVarBool(g_h_auto_ready) || GetConVarBool(g_h_half_auto_ready))
-				{
-					ReadySystem(true);
-					CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 0.5, UpdateInfo, TIMER_FLAG_NO_MAPCHANGE);
-				}
+				CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 1.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
 			}
 			else if (GetTScore() == GetConVarInt(g_h_max_rounds) && GetCTScore() == GetConVarInt(g_h_max_rounds)) // complete draw
 			{
@@ -2396,12 +2390,7 @@ CheckScores()
 					SetAllCancelled(false);
 					ReadyChangeAll(0, false, true);
 					
-					if (GetConVarBool(g_h_auto_ready) || GetConVarBool(g_h_half_auto_ready))
-					{
-						ReadySystem(true);
-						ShowInfo(0, true, false, 0);
-						CheckReady();
-					}
+					CreateTimer(3.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
 				}
 				else if (GetConVarInt(g_h_overtime) == 2) // sudden death overtime
 				{
@@ -2420,12 +2409,7 @@ CheckScores()
 					SetAllCancelled(false);
 					ReadyChangeAll(0, false, true);
 					
-					if (GetConVarBool(g_h_auto_ready) || GetConVarBool(g_h_half_auto_ready))
-					{
-						ReadySystem(true);
-						ShowInfo(0, true, false, 0);
-						CheckReady();
-					}
+					CreateTimer(3.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
 				}
 				else
 				{
@@ -2568,12 +2552,7 @@ CheckScores()
 					SwitchTeams();
 				}
 				
-				if (GetConVarBool(g_h_auto_ready) || GetConVarBool(g_h_half_auto_ready))
-				{
-					ReadySystem(true);
-					CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 0.5, UpdateInfo, TIMER_FLAG_NO_MAPCHANGE);
-					CheckReady();
-				}
+				CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 1.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
 			}
 			else if (GetTOTScore() == GetConVarInt(g_h_overtime_mr) && GetCTOTScore() == GetConVarInt(g_h_overtime_mr)) // complete draw
 			{
@@ -2590,12 +2569,7 @@ CheckScores()
 					SetAllCancelled(false);
 					ReadyChangeAll(0, false, true);
 					
-					if (GetConVarBool(g_h_auto_ready) || GetConVarBool(g_h_half_auto_ready))
-					{
-						ReadySystem(true);
-						ShowInfo(0, true, false, 0);
-						CheckReady();
-					}
+					CreateTimer(3.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
 					
 					return;
 				}
@@ -2702,11 +2676,7 @@ CheckScores()
 				SwitchTeams();
 			}
 			
-			if (GetConVarBool(g_h_auto_ready) || GetConVarBool(g_h_half_auto_ready))
-			{
-				ReadySystem(true);
-				CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 0.5, UpdateInfo, TIMER_FLAG_NO_MAPCHANGE);
-			}
+			CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 1.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
 		}
 		else if (GetTScore() == GetConVarInt(g_h_max_rounds) || GetCTScore() == GetConVarInt(g_h_max_rounds))
 		{
@@ -3027,14 +2997,7 @@ ExecuteLiveOn3(bool:e_war)
 	g_match = true;
 	g_live = true;
 	
-	// ======================================================================
-	if (g_should_restore_player_scores)
-	{
-		RestorePlayerScores();
-		g_should_restore_player_scores = false;
-	}
-	SyncScoreboard();
-	// ======================================================================
+
 
 	CreateTimer(10.0, AdvertGameTechSpecs);
 	
@@ -4782,7 +4745,7 @@ public Action:RespawnPlayer(Handle:timer, any:client)
         new team = GetClientTeam(client);
         if (team > 1)
         {
-            if (!g_live || !IsPlayerAlive(client))
+            if (!IsPlayerAlive(client))
             {
                 CS_RespawnPlayer(client);
             }
@@ -5615,3 +5578,13 @@ public Action:Timer_SendRadioClean(Handle:timer, Handle:dp)
     
     return Plugin_Stop;
 }
+
+public Action:Timer_AutoLiveOn3(Handle:timer)
+{
+    if (!IsActive(0, true)) return Plugin_Stop;
+    SetAllCancelled(false);
+    ReadySystem(false);
+    LiveOn3(true);
+    return Plugin_Stop;
+}
+
