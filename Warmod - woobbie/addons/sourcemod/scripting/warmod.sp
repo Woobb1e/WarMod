@@ -122,9 +122,7 @@ new Handle:g_h_mp_startmoney = INVALID_HANDLE;
 
 /* Custom Colors & Prefix */
 new Handle:g_h_prefix_text = INVALID_HANDLE;
-new Handle:g_h_prefix_color = INVALID_HANDLE;
 new Handle:g_h_text_color = INVALID_HANDLE;
-new Handle:g_h_highlight_color = INVALID_HANDLE;
 new Handle:g_h_color_t = INVALID_HANDLE;
 new Handle:g_h_color_ct = INVALID_HANDLE;
 new Handle:g_h_color_money = INVALID_HANDLE;
@@ -258,9 +256,7 @@ public OnPluginStart()
 	
 	/* Custom Text & Colors CVARs */
 	g_h_prefix_text = CreateConVar("wm_prefix_text", "Warmod", "The prefix text used in chat");
-	g_h_prefix_color = CreateConVar("wm_prefix_color", "{#00FF00}", "The hex color for the prefix");
 	g_h_text_color = CreateConVar("wm_text_color", "{#FFFFFF}", "The hex color for the text");
-	g_h_highlight_color = CreateConVar("wm_highlight_color", "{#FFA500}", "The hex color for highlight");
 	g_h_color_t = CreateConVar("wm_color_t", "{#FF4040}", "The hex color for Terrorist team");
 	g_h_color_ct = CreateConVar("wm_color_ct", "{#99CCFF}", "The hex color for Counter-Terrorist team");
 	g_h_color_money = CreateConVar("wm_color_money", "{#00FF00}", "The hex color for money numbers");
@@ -3489,7 +3485,7 @@ ShowInfo(client, bool:enable, bool:priv, time)
 		
 		decl String:prefix[64];
 		GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
-		Format(panel_title, sizeof(panel_title), "<%s> %t", prefix, "Ready System Disabled", client);
+		Format(panel_title, sizeof(panel_title), "Woobbie - %t", "Ready System Disabled", client);
 		SetPanelTitle(g_m_ready_up, panel_title);
 		
 		for (new i = 1; i <= MaxClients; i++)
@@ -3547,7 +3543,7 @@ DispInfo(client, String:players_unready[], time)
 	GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
 	
 	g_m_ready_up = CreatePanel();
-	Format(Temp, sizeof(Temp), "<%s> | Woobbie - %t", prefix, "Ready System");
+	Format(Temp, sizeof(Temp), "Woobbie - %t", "Ready System");
 	SetPanelTitle(g_m_ready_up, Temp);
 	DrawPanelText(g_m_ready_up, "\n \n");
 	Format(Temp, sizeof(Temp), "%t", "Match Begin Msg", GetConVarInt(g_h_min_ready));
@@ -4866,16 +4862,19 @@ public Action:ShowPluginInfo(Handle:timer, any:client)
 
 public Action:WMVersion(client, args)
 {
-	decl String:prefix[64];
+	decl String:prefix[128];
 	GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
+	
+	decl String:clean_prefix[128];
+	WM_StripColors(prefix, clean_prefix, sizeof(clean_prefix));
 	
 	if (client == 0)
 	{
-		PrintToServer("\"wm_version\" = \"%s\"\n - <%s> %s", WM_VERSION, prefix, WM_DESCRIPTION);
+		PrintToServer("\"wm_version\" = \"%s\"\n - %s %s", WM_VERSION, clean_prefix, WM_DESCRIPTION);
 	}
 	else
 	{
-		PrintToConsole(client, "\"wm_version\" = \"%s\"\n - <%s> %s", WM_VERSION, prefix, WM_DESCRIPTION);
+		PrintToConsole(client, "\"wm_version\" = \"%s\"\n - %s %s", WM_VERSION, clean_prefix, WM_DESCRIPTION);
 	}
 	
 	return Plugin_Handled;
@@ -5418,6 +5417,32 @@ DisplayEndMatchInfo()
 /* Custom Printing Helper Functions */
 /* ========================================================================= */
 
+stock WM_StripColors(const String:input[], String:output[], maxlen)
+{
+    new in_len = strlen(input);
+    new out_idx = 0;
+    new bool:in_tag = false;
+    
+    for (new i = 0; i < in_len && out_idx < maxlen - 1; i++)
+    {
+        if (input[i] == '{')
+        {
+            in_tag = true;
+            continue;
+        }
+        if (in_tag)
+        {
+            if (input[i] == '}')
+            {
+                in_tag = false;
+            }
+            continue;
+        }
+        output[out_idx++] = input[i];
+    }
+    output[out_idx] = '\0';
+}
+
 stock WM_CPrintToChat(client, const String:format[], any:...)
 {
     if (client > 0 && IsClientInGame(client))
@@ -5426,24 +5451,20 @@ stock WM_CPrintToChat(client, const String:format[], any:...)
         SetGlobalTransTarget(client);
         VFormat(buffer, sizeof(buffer), format, 3);
         
-        decl String:prefix[64];
-        decl String:p_color[32];
+        decl String:prefix[128];
         decl String:t_color[32];
         GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
-        GetConVarString(g_h_prefix_color, p_color, sizeof(p_color));
         GetConVarString(g_h_text_color, t_color, sizeof(t_color));
         
-        CPrintToChat(client, "%s<%s> %s%s", p_color, prefix, t_color, buffer);
+        CPrintToChat(client, "%s %s%s", prefix, t_color, buffer);
     }
 }
 
 stock WM_CPrintToChatAll(const String:format[], any:...)
 {
-    decl String:prefix[64];
-    decl String:p_color[32];
+    decl String:prefix[128];
     decl String:t_color[32];
     GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
-    GetConVarString(g_h_prefix_color, p_color, sizeof(p_color));
     GetConVarString(g_h_text_color, t_color, sizeof(t_color));
     
     decl String:buffer[512];
@@ -5453,34 +5474,40 @@ stock WM_CPrintToChatAll(const String:format[], any:...)
         {
             SetGlobalTransTarget(i);
             VFormat(buffer, sizeof(buffer), format, 2);
-            CPrintToChat(i, "%s<%s> %s%s", p_color, prefix, t_color, buffer);
+            CPrintToChat(i, "%s %s%s", prefix, t_color, buffer);
         }
     }
 }
 
 stock WM_PrintToConsole(client, const String:format[], any:...)
 {
-    decl String:prefix[64];
+    decl String:prefix[128];
     GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
+    
+    decl String:clean_prefix[128];
+    WM_StripColors(prefix, clean_prefix, sizeof(clean_prefix));
     
     decl String:buffer[512];
     if (client > 0 && IsClientInGame(client))
     {
         SetGlobalTransTarget(client);
         VFormat(buffer, sizeof(buffer), format, 3);
-        PrintToConsole(client, "[%s] %s", prefix, buffer);
+        PrintToConsole(client, "%s %s", clean_prefix, buffer);
     }
 }
 
 stock WM_PrintToServer(const String:format[], any:...)
 {
-    decl String:prefix[64];
+    decl String:prefix[128];
     GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
+    
+    decl String:clean_prefix[128];
+    WM_StripColors(prefix, clean_prefix, sizeof(clean_prefix));
     
     decl String:buffer[512];
     VFormat(buffer, sizeof(buffer), format, 2);
     
-    PrintToServer("[%s] %s", prefix, buffer);
+    PrintToServer("%s %s", clean_prefix, buffer);
 }
 
 stock CallForwardSafe(Handle:fwd)
@@ -5494,10 +5521,16 @@ stock CallForwardSafe(Handle:fwd)
 
 stock WM_CReplyToCommand(client, const String:format[], any:...)
 {
-    decl String:prefix[64];
-    decl String:p_color[32];
+    decl String:buffer[512];
+    SetGlobalTransTarget(client);
+    VFormat(buffer, sizeof(buffer), format, 3);
+    
+    decl String:prefix[128];
+    decl String:t_color[32];
     GetConVarString(g_h_prefix_text, prefix, sizeof(prefix));
-    GetConVarString(g_h_prefix_color, p_color, sizeof(p_color));
+    GetConVarString(g_h_text_color, t_color, sizeof(t_color));
+    
+    CReplyToCommand(client, "%s %s%s", prefix, t_color, buffer);
 }
 
 /* ========================================================================= */
