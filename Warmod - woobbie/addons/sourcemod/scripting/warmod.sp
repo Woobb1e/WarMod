@@ -2911,8 +2911,6 @@ LiveOn3(bool:e_war)
 
 ExecuteLiveOn3(bool:e_war)
 {
-	CallForwardSafe(g_f_on_lo3);
-	
 	ServerCommand("sv_alltalk 0");
 	
 	g_t_score = false;
@@ -3018,6 +3016,11 @@ ExecuteLiveOn3(bool:e_war)
 	{
 		LiveOn3Override();
 	}
+	
+	// Fire the OnLiveOn3 forward only after the LO3 restart sequence has
+	// finished, so plugins (e.g. damage info) activate with the real live
+	// round instead of during the "Live on 3 / 2 / 1" restarts
+	CreateTimer(3.5, Timer_FireLO3Forward, _, TIMER_FLAG_NO_MAPCHANGE);
 	
 	g_match = true;
 	g_live = true;
@@ -5743,6 +5746,13 @@ StartSecondHalf()
 			ShowInfo(0, true, false, 0);
 		}
 	}
+}
+
+public Action:Timer_FireLO3Forward(Handle:timer)
+{
+	// Delayed OnLiveOn3 - fires after the LO3 restart sequence has completed
+	CallForwardSafe(g_f_on_lo3);
+	return Plugin_Stop;
 }
 
 public Action:Timer_AutoLiveOn3(Handle:timer)
