@@ -5488,6 +5488,32 @@ DisplayEndMatchInfo()
 			{
 				decl String:info[256];
 				strcopy(info, sizeof(info), line[11]);
+				
+				// {demo} -> the actual demo file recorded for this match
+				// (final name, after RenameDemos removes the "_" prefix)
+				if (StrContains(info, "{demo}") != -1)
+				{
+					new String:demo_path[192];
+					if (GetConVarBool(g_h_auto_record) && g_log_filename[0] != '\0')
+					{
+						new String:save_dir[128];
+						GetConVarString(g_h_save_file_dir, save_dir, sizeof(save_dir));
+						if (g_log_warmod_dir)
+						{
+							Format(demo_path, sizeof(demo_path), "%s/%s.dem", save_dir, g_log_filename);
+						}
+						else
+						{
+							Format(demo_path, sizeof(demo_path), "%s.dem", g_log_filename);
+						}
+					}
+					else
+					{
+						strcopy(demo_path, sizeof(demo_path), "no demo recorded");
+					}
+					ReplaceString(info, sizeof(info), "{demo}", demo_path);
+				}
+				
 				CPrintToChatAll("%s", info);
 			}
 		}
