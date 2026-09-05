@@ -1,6 +1,6 @@
 # WarMod — Woobbie & Kam x GameTech
 
-**Version:** 1.0.0
+**Version:** 1.3.2
 **Platform:** Counter-Strike: Source **v34** dedicated server with **SourceMod 1.11.0**
 **Description:** An automatic match ("warmod") system for CS:S v34 competitive servers — ready-up system, live-on-3, knife round, half-time team swap, overtime, SourceTV demo recording, score tracking and per-weapon statistics.
 
