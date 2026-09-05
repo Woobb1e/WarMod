@@ -21,6 +21,7 @@ char g_sColLg[16];
 char g_sColW[16];
 char g_sColT[16];
 char g_sColCT[16];
+char g_sPrefix[64];
 
 // Optional native bindings to WarMod Manager
 native bool Warmod_IsMatchLive();
@@ -38,7 +39,7 @@ public Plugin myinfo =
     name = "Warmod damage info",
     author = "Woobbie",
     description = "Displays damage info during live competitive match rounds (first half, second half and overtime)",
-    version = "3.1.0",
+    version = "3.3.0",
     url = "https://github.com/Woobb1e"
 };
 
@@ -171,7 +172,7 @@ public Action Event_PlayerHurt(Event event, const char[] name, bool dontBroadcas
     int attacker = GetClientOfUserId(event.GetInt("attacker"));
     int damage = event.GetInt("dmg_health");
 
-    if (attacker > 0 && attacker <= MAXPLAYERS && victim > 0 && victim <= MAXPLAYERS && attacker != victim)
+    if (attacker > 0 && attacker <= MaxClients && victim > 0 && victim <= MaxClients && attacker != victim)
     {
         if (IsClientInGame(attacker) && IsClientInGame(victim) && GetClientTeam(attacker) != GetClientTeam(victim))
         {
@@ -190,9 +191,9 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
     int victim = GetClientOfUserId(event.GetInt("userid"));
     int attacker = GetClientOfUserId(event.GetInt("attacker"));
 
-    if (victim > 0 && victim <= MAXPLAYERS && IsClientInGame(victim) && !IsFakeClient(victim))
+    if (victim > 0 && victim <= MaxClients && IsClientInGame(victim) && !IsFakeClient(victim))
     {
-        if (attacker > 0 && attacker <= MAXPLAYERS && IsClientInGame(attacker) && attacker != victim)
+        if (attacker > 0 && attacker <= MaxClients && IsClientInGame(attacker) && attacker != victim)
         {
             if (GetClientTeam(victim) != GetClientTeam(attacker))
             {
@@ -215,9 +216,9 @@ public Action Timer_ShowDeathDamage(Handle timer, DataPack pack)
     int victim = pack.ReadCell();
     int attacker = pack.ReadCell();
 
-    if (victim <= 0 || victim > MAXPLAYERS || !IsClientInGame(victim) || IsFakeClient(victim))
+    if (victim <= 0 || victim > MaxClients || !IsClientInGame(victim) || IsFakeClient(victim))
         return Plugin_Stop;
-    if (attacker <= 0 || attacker > MAXPLAYERS || !IsClientInGame(attacker))
+    if (attacker <= 0 || attacker > MaxClients || !IsClientInGame(attacker))
         return Plugin_Stop;
 
     int dDealt = g_iDamageDealt[victim][attacker];
@@ -234,10 +235,13 @@ public Action Timer_ShowDeathDamage(Handle timer, DataPack pack)
     if (enemyHp < 0)
         enemyHp = 0;
 
-    CPrintToChat(victim, "%s[%s%d %s/ %s%d %shits] to [%s%d %s/ %s%d %shits] - %s%s %s[%s%d%s HP]",
-        g_sColW, g_sColLg, dDealt, g_sColW, g_sColLg, hDealt, g_sColW,
-        g_sColLg, dTaken, g_sColW, g_sColLg, hTaken, g_sColW,
-        enemyCol, enemyName, g_sColW, g_sColLg, enemyHp, g_sColW);
+    char msg[256];
+    Format(msg, sizeof(msg), "%s%sTo: %s[%s%d %s/ %s%d %shits]%s From: %s[%s%d %s/ %s%d %shits]%s - %s%s %s(%s%d%s hp)",
+        g_sPrefix,
+        g_sColW, g_sColW, g_sColLg, dDealt, g_sColW, g_sColLg, hDealt, g_sColW,
+        g_sColW, g_sColW, g_sColLg, dTaken, g_sColW, g_sColLg, hTaken, g_sColW,
+        g_sColW, enemyCol, enemyName, g_sColW, g_sColLg, enemyHp, g_sColW);
+    CPrintToChat(victim, "%s", msg);
 
     return Plugin_Stop;
 }
@@ -250,7 +254,7 @@ public void LoadDamageColors()
     KeyValues kv = new KeyValues("warmod_damage_colors");
     if (kv.ImportFromFile(path))
     {
-        char tmp[32];
+        char tmp[128];
         if (kv.GetString("col_lg", tmp, sizeof(tmp)))
             strcopy(g_sColLg, sizeof(g_sColLg), tmp);
         else
@@ -270,6 +274,11 @@ public void LoadDamageColors()
             strcopy(g_sColCT, sizeof(g_sColCT), tmp);
         else
             strcopy(g_sColCT, sizeof(g_sColCT), "{#4080FF}");
+
+        if (kv.GetString("prefix", tmp, sizeof(tmp)))
+            strcopy(g_sPrefix, sizeof(g_sPrefix), tmp);
+        else
+            strcopy(g_sPrefix, sizeof(g_sPrefix), "[FACEIT^]");
     }
     else
     {
@@ -277,6 +286,7 @@ public void LoadDamageColors()
         strcopy(g_sColW, sizeof(g_sColW), "{#FFFFFF}");
         strcopy(g_sColT, sizeof(g_sColT), "{#FF4040}");
         strcopy(g_sColCT, sizeof(g_sColCT), "{#4080FF}");
+        strcopy(g_sPrefix, sizeof(g_sPrefix), "[FACEIT^]");
     }
     delete kv;
 }
@@ -324,12 +334,12 @@ public Action Timer_ShowDamage(Handle timer, DataPack pack)
     int winnerTeam = pack.ReadCell();
     int loserTeam = (winnerTeam == 2) ? 3 : 2;
 
-    for (int i = 1; i <= MAXPLAYERS; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (!IsClientInGame(i) || IsFakeClient(i) || GetClientTeam(i) != loserTeam)
             continue;
 
-        for (int j = 1; j <= MAXPLAYERS; j++)
+        for (int j = 1; j <= MaxClients; j++)
         {
             if (!IsClientInGame(j) || i == j || GetClientTeam(j) != winnerTeam)
                 continue;
@@ -348,10 +358,13 @@ public Action Timer_ShowDamage(Handle timer, DataPack pack)
             if (enemyHp < 0)
                 enemyHp = 0;
 
-            CPrintToChat(i, "%s[%s%d %s/ %s%d %shits] to [%s%d %s/ %s%d %shits] - %s%s %s[%s%d%s HP]",
-                g_sColW, g_sColLg, dDealt, g_sColW, g_sColLg, hDealt, g_sColW,
-                g_sColLg, dTaken, g_sColW, g_sColLg, hTaken, g_sColW,
-                enemyCol, enemyName, g_sColW, g_sColLg, enemyHp, g_sColW);
+            char msg[256];
+            Format(msg, sizeof(msg), "%s%sTo: %s[%s%d %s/ %s%d %shits]%s From: %s[%s%d %s/ %s%d %shits]%s - %s%s %s(%s%d%s hp)",
+                g_sPrefix,
+                g_sColW, g_sColW, g_sColLg, dDealt, g_sColW, g_sColLg, hDealt, g_sColW,
+                g_sColW, g_sColW, g_sColLg, dTaken, g_sColW, g_sColLg, hTaken, g_sColW,
+                g_sColW, enemyCol, enemyName, g_sColW, g_sColLg, enemyHp, g_sColW);
+            CPrintToChat(i, "%s", msg);
         }
     }
     return Plugin_Stop;
@@ -361,9 +374,9 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 {
     g_bRoundEnded = false;
 
-    for (int i = 1; i <= MAXPLAYERS; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
-        for (int j = 1; j <= MAXPLAYERS; j++)
+        for (int j = 1; j <= MaxClients; j++)
         {
             g_iDamageDealt[i][j] = 0;
             g_iHitsDealt[i][j] = 0;
