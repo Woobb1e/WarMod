@@ -37,8 +37,8 @@ public Plugin myinfo =
 {
     name = "Warmod damage info",
     author = "Woobbie",
-    description = "Displays damage info only during live competitive matches",
-    version = "3.0.1",
+    description = "Displays damage info during live competitive match rounds (first half, second half and overtime)",
+    version = "3.1.0",
     url = "https://github.com/Woobb1e"
 };
 
@@ -85,7 +85,7 @@ public void OnMapStart()
 // -------------------------------------------------------------------
 public void OnLiveOn3()
 {
-    // Match goes live (Lo3 finished)
+    // Match goes live (Lo3 finished) - also fires at the start of each overtime period
     g_bMatchLive = true;
     g_bHalfTime = false;
 }
@@ -101,6 +101,19 @@ public void OnResetHalf()
 {
     // Half was reset - treat as halftime swap
     g_bHalfTime = true;
+}
+
+public void OnHalfTime()
+{
+    // End of a half (regulation or overtime) -> suppress damage during the break
+    g_bHalfTime = true;
+}
+
+public void OnEndMatch()
+{
+    // Full time reached -> match is over
+    g_bMatchLive = false;
+    g_bHalfTime = false;
 }
 
 public void Warmod_OnMatchStart(const int[] players, int numPlayers)
@@ -287,27 +300,11 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
     if (winnerTeam < 2)
         return Plugin_Continue;
 
-    // Direct engine score-based halftime and match end lock (CS:S v34)
-    int tScore = GetTeamScore(2);
-    int ctScore = GetTeamScore(3);
-    int totalRounds = tScore + ctScore;
-
-    ConVar hMaxRounds = FindConVar("wm_max_rounds");
-    int maxHalfRounds = (hMaxRounds != null) ? hMaxRounds.IntValue : 15;
-
-    // 1. Halftime Detection (15 rounds reached in MR15) -> SUPPRESS DAMAGE!
-    if (totalRounds == maxHalfRounds)
-    {
-        g_bHalfTime = true;
-        return Plugin_Continue; // Do NOT start Timer_ShowDamage
-    }
-
-    // 2. Match End Detection (Team reached 16 rounds or all 30 rounds finished) -> SUPPRESS DAMAGE!
-    if (tScore > maxHalfRounds || ctScore > maxHalfRounds || totalRounds >= (maxHalfRounds * 2))
-    {
-        g_bMatchLive = false;
-        return Plugin_Continue; // Do NOT start Timer_ShowDamage
-    }
+    // NOTE: Halftime and match-end suppression is handled by the OnHalfTime()
+    // and OnEndMatch() lifecycle forwards from warmod.sp (which also fire for
+    // overtime periods). Timer_ShowDamage re-checks IsAllowedToShowDamage()
+    // after these have run, so the summary is still hidden for the halftime
+    // round / final match round while remaining active during overtime.
 
     g_bRoundEnded = true;
 
