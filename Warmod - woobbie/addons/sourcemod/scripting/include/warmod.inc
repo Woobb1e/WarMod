@@ -43,7 +43,7 @@
 #define CLUTCH_WON         3
 #define CLUTCH_NUM         4
 
-#define WM_VERSION "1.0.0"
+#define WM_VERSION "1.2.1"
 #define WM_DESCRIPTION "An automative service for CS:S V34 competitive matches, developed by GameTech, modified by Woobie"
 
 
