@@ -89,6 +89,7 @@ new Handle:g_h_auto_ready = INVALID_HANDLE;
 new Handle:g_h_auto_swap = INVALID_HANDLE;
 new Handle:g_h_auto_swap_delay = INVALID_HANDLE;
 new Handle:g_h_half_auto_ready = INVALID_HANDLE;
+new Handle:g_h_half_auto_live = INVALID_HANDLE;
 new Handle:g_h_auto_knife = INVALID_HANDLE;
 new Handle:g_h_auto_kick_team = INVALID_HANDLE;
 new Handle:g_h_auto_kick_delay = INVALID_HANDLE;
@@ -108,6 +109,7 @@ new Handle:g_h_body_remove = INVALID_HANDLE;
 new Handle:g_h_deathcam_remove = INVALID_HANDLE;
 new Handle:g_h_deathcam_delay = INVALID_HANDLE;
 new Handle:g_h_warmup_respawn = INVALID_HANDLE;
+new Handle:g_h_join_respawn_wait = INVALID_HANDLE;
 new Handle:g_h_modifiers = INVALID_HANDLE;
 new Handle:g_h_status = INVALID_HANDLE;
 new Handle:g_h_upload_results = INVALID_HANDLE;
@@ -161,6 +163,9 @@ new Handle:wm_db = INVALID_HANDLE;
 
 /* deathcam */
 new Handle:g_deathcam_delays[MAXPLAYERS + 1] = INVALID_HANDLE;
+new Handle:g_hJoinRespawnTimer[MAXPLAYERS + 1] = INVALID_HANDLE;
+new g_iJoinRespawnTicks[MAXPLAYERS + 1];
+new bool:g_bWarmupApplied = false;
 
 public Plugin:myinfo = {
 	name = "warmod",
@@ -294,6 +299,7 @@ public OnPluginStart()
 	g_h_auto_swap = CreateConVar("wm_auto_swap", "1", "Enable or disable the automatic swapping of teams at half time", FCVAR_NOTIFY);
 	g_h_auto_swap_delay = CreateConVar("wm_auto_swap_delay", "3", "Time to wait before swapping teams at half time", 0, true, 0.0);
 	g_h_half_auto_ready = CreateConVar("wm_half_auto_ready", "1", "Enable or disable the ready system being automatically enabled at end of half", FCVAR_NOTIFY);
+	g_h_half_auto_live = CreateConVar("wm_half_auto_live", "0", "Enable or disable the automatic Live on 3 at end of half (second half). When disabled, the ready system is used instead and the second half starts when enough players are ready", FCVAR_NOTIFY);
 	g_h_auto_knife = CreateConVar("wm_auto_knife", "0", "Enable or disable the knife round before going live", FCVAR_NOTIFY);
 	g_h_auto_kick_team = CreateConVar("wm_auto_kick_team", "0", "Enable or disable the automatic kicking of the losing team", FCVAR_NOTIFY);
 	g_h_auto_kick_delay = CreateConVar("wm_auto_kick_delay", "10", "Sets the seconds to wait before kicking the losing team", FCVAR_NOTIFY, true, 0.0);
@@ -313,6 +319,7 @@ public OnPluginStart()
 	g_h_deathcam_remove = CreateConVar("wm_remove_deathcam", "1", "Enable or disable the switching of views after wm_remove_deathcam_delay seconds of time after death", FCVAR_NOTIFY);
 	g_h_deathcam_delay = CreateConVar("wm_remove_deathcam_delay", "1.4", "The ammount of time to wait before switching a players view after death", FCVAR_NOTIFY, true, 1.4);
 	g_h_warmup_respawn = CreateConVar("wm_warmup_respawn", "1", "Enable or disable the respawning of players in warmup", FCVAR_NOTIFY);
+	g_h_join_respawn_wait = CreateConVar("wm_join_respawn_wait", "0", "Optional seconds to wait before force-respawning a player who joined a team but has not chosen a character yet (0 = disabled, only respawn after the character is chosen or at the next round restart)", FCVAR_NOTIFY, true, 0.0);
 	g_h_modifiers = CreateConVar("wm_modifiers", "1", "Enable or disable slight game modifiers (green RCON + short team_say)", FCVAR_NOTIFY);
 	g_h_status = CreateConVar("wm_status", "0", "WarMod automatically updates this value to the corresponding match status code", FCVAR_NOTIFY);
 	g_h_upload_results = CreateConVar("wm_upload_results", "0", "Enable or disable the uploading of match results via MySQL", FCVAR_NOTIFY);
@@ -415,6 +422,12 @@ public OnMapStart()
 public OnMapEnd()
 {
 	ResetSwitchCameraTimers(false);
+	
+	// Kill any pending join-respawn timers
+	for (new i = 1; i <= MaxClients; i++)
+	{
+		StopJoinRespawn(i);
+	}
 }
 
 public OnLibraryRemoved(const String:name[])
@@ -459,6 +472,7 @@ public OnClientPutInServer(client)
 
 public OnClientDisconnect(client)
 {
+	StopJoinRespawn(client);
 	g_player_list[client] = PLAYER_DISC;
 	g_cancel_list[client] = false;
 	user_damage[client][0] = '\0';
@@ -539,7 +553,16 @@ ResetMatch(bool:silent)
 	ResetMatchScores();
 	ResetTeams();
 
-	ApplyWarmupSettings();
+	if (g_bWarmupApplied)
+	{
+		// Warmup settings and the restart were already applied at end match
+		// (Timer_DelayedEndMatch) - no second restart needed
+		g_bWarmupApplied = false;
+	}
+	else
+	{
+		ApplyWarmupSettings(true);
+	}
 
 	if (!silent)
 	{
@@ -588,7 +611,7 @@ ResetHalf(bool:silent)
 		}
 		ServerCommand("mp_restartgame 1");
 
-		ApplyWarmupSettings();
+		ApplyWarmupSettings(true);
 	}
 }
 
@@ -1987,7 +2010,9 @@ public Event_Player_Team(Handle:event, const String:name[], bool:dontBroadcast)
 		{
 			CreateTimer(3.0, Timer_StartShowingStatus, _, TIMER_FLAG_NO_MAPCHANGE);
 			
-			CreateTimer(0.5, RespawnPlayer, client);
+			// Respawn only after the player has chosen their character/class,
+			// otherwise changing the class while alive causes a suicide.
+			StartJoinRespawn(client);
 		}
 	}
 }
@@ -2370,7 +2395,7 @@ CheckScores()
 					SwitchTeams();
 				}
 				
-				CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 1.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
+				StartSecondHalf();
 			}
 			else if (GetTScore() == GetConVarInt(g_h_max_rounds) && GetCTScore() == GetConVarInt(g_h_max_rounds)) // complete draw
 			{
@@ -2552,7 +2577,7 @@ CheckScores()
 					SwitchTeams();
 				}
 				
-				CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 1.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
+				StartSecondHalf();
 			}
 			else if (GetTOTScore() == GetConVarInt(g_h_overtime_mr) && GetCTOTScore() == GetConVarInt(g_h_overtime_mr)) // complete draw
 			{
@@ -2676,7 +2701,7 @@ CheckScores()
 				SwitchTeams();
 			}
 			
-			CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 1.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
+			StartSecondHalf();
 		}
 		else if (GetTScore() == GetConVarInt(g_h_max_rounds) || GetCTScore() == GetConVarInt(g_h_max_rounds))
 		{
@@ -4739,6 +4764,75 @@ public Action:CheckNames(Handle:timer, any:client)
 	}
 }
 
+StartJoinRespawn(client)
+{
+	StopJoinRespawn(client);
+	g_iJoinRespawnTicks[client] = 0;
+	g_hJoinRespawnTimer[client] = CreateTimer(1.0, Timer_JoinRespawn, client, TIMER_REPEAT);
+}
+
+StopJoinRespawn(client)
+{
+	if (g_hJoinRespawnTimer[client] != INVALID_HANDLE)
+	{
+		KillTimer(g_hJoinRespawnTimer[client]);
+		g_hJoinRespawnTimer[client] = INVALID_HANDLE;
+	}
+}
+
+// Respawns a player who joined a team, but only once they have finished
+// choosing their character/class (the CS:S class menu is closed).
+// While the menu is still open the player is NOT respawned, because
+// changing the class while alive makes the game kill the player (suicide).
+public Action:Timer_JoinRespawn(Handle:timer, any:client)
+{
+	if (!IsClientInGame(client) || GetClientTeam(client) <= 1)
+	{
+		g_hJoinRespawnTimer[client] = INVALID_HANDLE;
+		return Plugin_Stop;
+	}
+	
+	if (IsPlayerAlive(client))
+	{
+		// The player spawned already (e.g. round restart after choosing a character)
+		g_hJoinRespawnTimer[client] = INVALID_HANDLE;
+		return Plugin_Stop;
+	}
+	
+	g_iJoinRespawnTicks[client]++;
+	
+	// m_iJoiningState is 0 once the player has fully joined with a chosen character.
+	// Default fallback is NOT chosen: if the netprop is missing we can't detect the
+	// menu state reliably, so we never auto-spawn (the player spawns naturally at
+	// the next round restart instead).
+	new bool:class_chosen = false;
+	if (HasEntProp(client, Prop_Send, "m_iJoiningState"))
+	{
+		class_chosen = (GetEntProp(client, Prop_Send, "m_iJoiningState") == 0);
+	}
+	
+	new max_wait = GetConVarInt(g_h_join_respawn_wait);
+	if (!class_chosen)
+	{
+		// Character menu still open: keep waiting (default = forever) unless an
+		// optional timeout is set (wm_join_respawn_wait > 0) and has expired.
+		if (max_wait <= 0 || g_iJoinRespawnTicks[client] < max_wait)
+		{
+			return Plugin_Continue;
+		}
+		// Opt-in timeout expired -> force-respawn below
+	}
+	
+	if (!IsPlayerAlive(client))
+	{
+		CS_RespawnPlayer(client);
+		CreateTimer(0.1, Timer_SafeStrip, client, TIMER_FLAG_NO_MAPCHANGE);
+	}
+	
+	g_hJoinRespawnTimer[client] = INVALID_HANDLE;
+	return Plugin_Stop;
+}
+
 public Action:RespawnPlayer(Handle:timer, any:client)
 {
     if (IsClientInGame(client))
@@ -5223,7 +5317,7 @@ public Action:Timer_Countdown(Handle:timer)
 	return Plugin_Stop;
 }
 
-stock ApplyWarmupSettings()
+stock ApplyWarmupSettings(bool:restart)
 {
     g_live = false;
     g_match = false;
@@ -5234,7 +5328,11 @@ stock ApplyWarmupSettings()
     ServerCommand("mp_roundtime 9999");
     ServerCommand("mp_buytime 9999");
     ServerCommand("mp_startmoney 16000");
-    ServerCommand("mp_restartgame 1");
+    
+    if (restart)
+    {
+        ServerCommand("mp_restartgame 1");
+    }
     
     if (g_cleaner_timer == INVALID_HANDLE)
     {
@@ -5343,7 +5441,29 @@ public Action:Timer_DelayedEndMatch(Handle:timer)
 {
 	g_live = false;
 	ServerCommand("sv_alltalk 1");
+	
+	// Load the end config here while g_match is still set, because
+	// ApplyWarmupSettings() below already clears the match state
+	if (g_match)
+	{
+		CallForwardSafe(g_f_on_reset_match);
+		if (GetConVarBool(g_h_stats_enabled))
+		{
+			Log2Game("\"match_reset\"");
+		}
+		new String:end_config[128];
+		GetConVarString(g_h_end_config, end_config, sizeof(end_config));
+		ServerCommand("exec %s", end_config);
+	}
+	
 	DisplayEndMatchInfo();
+	
+	// Apply the warmup settings and perform the single restart here, so the
+	// round after full time already runs with warmup settings (no double restart)
+	ApplyWarmupSettings(true);
+	g_bWarmupApplied = true;
+	
+	// Delayed state cleanup (scores, teams) - no second restart (g_bWarmupApplied)
 	CreateTimer(2.0, Timer_ResetMatchAfterEnd, _);
 }
 
@@ -5578,6 +5698,25 @@ public Action:Timer_SendRadioClean(Handle:timer, Handle:dp)
     }
     
     return Plugin_Stop;
+}
+
+// Called at end of half (after the swap): either auto-goes live (wm_half_auto_live 1,
+// original behaviour) or enables the ready system so the second half starts when
+// enough players are ready (wm_half_auto_ready).
+StartSecondHalf()
+{
+	if (GetConVarBool(g_h_half_auto_live))
+	{
+		CreateTimer(GetConVarFloat(g_h_auto_swap_delay) + 1.0, Timer_AutoLiveOn3, _, TIMER_FLAG_NO_MAPCHANGE);
+	}
+	else
+	{
+		if (GetConVarBool(g_h_half_auto_ready))
+		{
+			ReadySystem(true);
+			ShowInfo(0, true, false, 0);
+		}
+	}
 }
 
 public Action:Timer_AutoLiveOn3(Handle:timer)
