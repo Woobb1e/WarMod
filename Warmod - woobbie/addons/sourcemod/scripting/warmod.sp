@@ -169,7 +169,7 @@ new bool:g_bWarmupApplied = false;
 
 public Plugin:myinfo = {
 	name = "warmod",
-	author = "Woobbie x GameTech",
+	author = "Woobbie & Kam x GameTech",
 	description = WM_DESCRIPTION,
 	version = WM_VERSION,
 	url = ""
@@ -555,7 +555,7 @@ ResetMatch(bool:silent)
 
 	if (g_bWarmupApplied)
 	{
-		// Warmup settings and the restart were already applied at end match
+		// Warmup settings
 		// (Timer_DelayedEndMatch) - no second restart needed
 		g_bWarmupApplied = false;
 	}
@@ -1281,7 +1281,7 @@ DisplayScore(client, msgindex, bool:priv)
 	else if (msgindex == 1) // overtime play score
 	{
 		new String:score_msg[192];
-		GetScoreMsg(client, score_msg, sizeof(score_msg), GetTOTScore(), GetCTOTScore());
+		GetScoreMsg(client, score_msg, sizeof(score_msg), GetTOTTotalScore(), GetCTOTTotalScore());
 		if (priv)
 		{
 			WM_CPrintToChat(client, "%t%s", "Score Overtime", score_msg);
@@ -5327,10 +5327,8 @@ stock ApplyWarmupSettings(bool:restart)
     g_t_knife = false;
     g_t_had_knife = false;
     
-    ServerCommand("mp_freezetime 0");
-    ServerCommand("mp_roundtime 9999");
-    ServerCommand("mp_buytime 9999");
-    ServerCommand("mp_startmoney 16000");
+    // All warmup settings come from ruleset_warmup.cfg (which also execs global cfg)
+    ServerCommand("exec warmod/ruleset_warmup.cfg");
     
     if (restart)
     {
@@ -5346,8 +5344,6 @@ stock ApplyWarmupSettings(bool:restart)
     {
         g_h_hud_timer = CreateTimer(1.0, Timer_WarmupHUD, _, TIMER_REPEAT | TIMER_FLAG_NO_MAPCHANGE);
     }
-
-    ServerCommand("sv_alltalk 1");
 }
 
 public Action:CS_OnTerminateRound(&Float:delay, &CSRoundEndReason:reason)
