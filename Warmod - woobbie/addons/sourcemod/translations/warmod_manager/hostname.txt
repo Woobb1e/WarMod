@@ -11,11 +11,6 @@
         "en"            "[Full]"
         "ru"            "[Полный]"
     }
-    "Hostname_Live"
-    {
-        "en"            "[Live]"
-        "ru"            "[Лайв]"
-    }
     "Hostname_Knife"
     {
         "en"            "[Knife Round]"
