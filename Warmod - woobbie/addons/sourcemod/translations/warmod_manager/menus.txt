@@ -1,0 +1,86 @@
+"Phrases"
+{
+    // ==========================================
+    //  MENU PANEL
+    // ==========================================
+
+    // --- Panel title ---
+    "Menu_Title"
+    {
+        "en"            "WarMod Manager\nMain menu\n "
+        "ru"            "WarMod Manager\nГлавное меню\n "
+    }
+
+    // --- Item labels (left of the colon) ---
+    "Menu_Mode"
+    {
+        "en"            "Game Mode"
+        "ru"            "Режим"
+    }
+    "Menu_Discipline"
+    {
+        "en"            "Discipline"
+        "ru"            "Дисциплина"
+    }
+    "Menu_Rounds"
+    {
+        "en"            "Rounds"
+        "ru"            "Раундов"
+    }
+
+    // --- Mode values (right of the colon) ---
+    "Menu_Mode_WarMod"
+    {
+        "en"            "WarMod"
+        "ru"            "WarMod"
+    }
+    "Menu_Mode_Mix"
+    {
+        "en"            "Mix"
+        "ru"            "Микс"
+    }
+
+    // --- Listen button ---
+    "Menu_StartListen"
+    {
+        "en"            "Start Listen"
+        "ru"            "Начать готовность"
+    }
+
+    // ==========================================
+    //  CHAT MESSAGES
+    // ==========================================
+    "Menu_Applied"
+    {
+        "#format"       "{1:s},{2:s},{3:i}"
+        "en"            "{2} - MR{3} - {1} mode applied!"
+        "ru"            "{2} - MR{3} - режим {1} применен!"
+    }
+    "No_Permission"
+    {
+        "en"            "[WarMod Manager] You do not have permission to use this command."
+        "ru"            "[WarMod Manager] У вас нет прав для использования этой команды."
+    }
+
+    // ==========================================
+    //  LEGACY (unused, kept for reference)
+    // ==========================================
+    "Menu_ModeFormat"
+    {
+        "#format"       "{1:s}"
+        "en"            "Game Mode: {1}"
+        "ru"            "Режим: {1}"
+    }
+    "Menu_DisciplineFormat"
+    {
+        "#format"       "{1:i},{2:i}"
+        "en"            "Discipline: {1}x{2}"
+        "ru"            "Дисциплина: {1}x{2}"
+    }
+    "Menu_RoundsFormat"
+    {
+        "#format"       "{1:i}"
+        "en"            "Rounds: {1}"
+        "ru"            "Раундов: {1}"
+    }
+}
