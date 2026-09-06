@@ -7,7 +7,7 @@
     // --- Panel title ---
     "Menu_Title"
     {
-        "en"            "WarMod Manager\nMain menu\n "
+        "en"            "WarMod Manager\nDevelped by Woobbie & Kam\n "
         "ru"            "WarMod Manager\nГлавное меню\n "
     }
 
